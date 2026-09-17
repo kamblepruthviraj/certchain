@@ -10,10 +10,7 @@ export default function Navbar({ currentView, setView, user, onLogout, pendingCo
             <ShieldCheck size={22} />
           </div>
           <div>
-            <div style={{ lineHeight: 1.1 }}>SecureCert</div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
-              CNS PBL • 30% Milestone
-            </div>
+            <div style={{ lineHeight: 1.1, fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.02em' }}>CertChain</div>
           </div>
         </div>
 

@@ -300,6 +300,69 @@ exports.approveCertificate = async (req, res) => {
 };
 
 /**
+ * Multi-Official Workflow: Reject Certificate
+ * Role: Admin or University Official can reject a pending certificate.
+ */
+exports.rejectCertificate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const officialUser = req.user;
+
+    let certificate;
+    if (id.startsWith('CERT-')) {
+      certificate = await Certificate.findOne({ certificateId: id });
+    } else {
+      certificate = await Certificate.findById(id);
+    }
+
+    if (!certificate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Certificate not found.'
+      });
+    }
+
+    if (certificate.status === 'ISSUED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot reject an already issued certificate.'
+      });
+    }
+
+    if (certificate.status === 'REJECTED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Certificate is already rejected.'
+      });
+    }
+
+    certificate.status = 'REJECTED';
+    certificate.rejectionReason = reason || 'Rejected during administrative review';
+    certificate.rejectedBy = {
+      officialId: officialUser._id,
+      officialName: officialUser.name,
+      rejectedAt: new Date()
+    };
+
+    await certificate.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Certificate ${certificate.certificateId} has been rejected.`,
+      certificate
+    });
+  } catch (error) {
+    console.error('Rejection error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error during certificate rejection.',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Dashboard stats: Total, Pending, Issued, Rejected
  */
 exports.getStats = async (req, res) => {

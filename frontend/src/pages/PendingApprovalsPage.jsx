@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckSquare, UserCheck, AlertCircle, CheckCircle2, ArrowRight, Shield, RefreshCw } from 'lucide-react';
+import { CheckSquare, UserCheck, AlertCircle, CheckCircle2, ArrowRight, Shield, RefreshCw, XCircle } from 'lucide-react';
 import { api } from '../services/api';
 import HashBadge from '../components/HashBadge';
 
@@ -8,6 +8,7 @@ export default function PendingApprovalsPage({ user, setView, setSelectedCertId,
   const [loading, setLoading] = useState(true);
   const [actionMessage, setActionMessage] = useState(null);
   const [approvingId, setApprovingId] = useState(null);
+  const [rejectingId, setRejectingId] = useState(null);
 
   const fetchPending = async () => {
     setLoading(true);
@@ -55,13 +56,43 @@ export default function PendingApprovalsPage({ user, setView, setSelectedCertId,
     }
   };
 
+  const handleReject = async (certId) => {
+    const reason = window.prompt('Please enter the reason for rejecting this certificate:');
+    if (reason === null) return; // cancelled
+    setRejectingId(certId);
+    setActionMessage(null);
+    try {
+      const res = await api.certificates.reject(certId, reason || 'Rejected during administrative review');
+      if (res.ok) {
+        setActionMessage({
+          type: 'success',
+          text: `Certificate ${certId} was rejected.`
+        });
+        await fetchPending();
+        if (onApprovalChanged) onApprovalChanged();
+      } else {
+        setActionMessage({
+          type: 'danger',
+          text: res.data.message || 'Failed to reject certificate.'
+        });
+      }
+    } catch (err) {
+      setActionMessage({
+        type: 'danger',
+        text: 'Error submitting rejection request.'
+      });
+    } finally {
+      setRejectingId(null);
+    }
+  };
+
   return (
     <div style={{ maxWidth: '1050px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
         <div>
           <h2>Multi-Official Approval Workflow</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-            Module 5: Prototype 2-of-2 ($t$-of-$n$) multi-signature approval queue before issuance
+            2-of-2 ($t$-of-$n$) multi-signature approval queue before issuance
           </p>
         </div>
         <button className="btn btn-secondary btn-sm" onClick={fetchPending}>
@@ -171,6 +202,24 @@ export default function PendingApprovalsPage({ user, setView, setSelectedCertId,
                       }}
                     >
                       Inspect Data
+                    </button>
+
+                    <button
+                      className="btn btn-sm"
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        color: '#fca5a5',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem'
+                      }}
+                      disabled={rejectingId === cert.certificateId || approvingId === cert.certificateId}
+                      onClick={() => handleReject(cert.certificateId)}
+                      id={`reject-btn-${cert.certificateId}`}
+                    >
+                      <XCircle size={15} />
+                      {rejectingId === cert.certificateId ? 'Rejecting...' : 'Reject'}
                     </button>
 
                     {hasCurrentUserApproved ? (

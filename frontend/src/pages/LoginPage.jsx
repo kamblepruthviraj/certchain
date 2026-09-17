@@ -113,7 +113,7 @@ export default function LoginPage({ onLoginSuccess }) {
               }}
             >
               <Sparkles size={13} />
-              PBL Evaluation Quick Logins
+              Official Demo Quick Logins
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <button

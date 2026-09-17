@@ -271,10 +271,63 @@ async function runTests() {
     console.log('  [Cleanup] Certificate restored to original state.');
 
     // ----------------------------------------------------
+    // TEST 7: Certificate Rejection Workflow
+    // ----------------------------------------------------
+    console.log('\n----------------------------------------------------');
+    console.log('TEST 7: Multi-Official Rejection Workflow');
+    console.log('----------------------------------------------------');
+
+    const resCreateRejectCert = await fetch(`${BASE_URL}/api/certificates`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${tokenOfficial1}`
+      },
+      body: JSON.stringify({
+        studentName: 'Test Student For Rejection',
+        usn: '1RV23CS999',
+        course: 'B.E. Computer Science',
+        institution: 'RV College of Engineering',
+        cgpa: '5.20',
+        issueDate: '2026-06-01',
+        certificateType: 'Degree'
+      })
+    });
+    const dataCreateReject = await resCreateRejectCert.json();
+    const rejectCertId = dataCreateReject.certificate.certificateId;
+
+    const resReject = await fetch(`${BASE_URL}/api/certificates/${rejectCertId}/reject`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${tokenOfficial2}`
+      },
+      body: JSON.stringify({
+        reason: 'Ineligible criteria detected during review'
+      })
+    });
+    const dataReject = await resReject.json();
+    if (!dataReject.success || dataReject.certificate.status !== 'REJECTED') {
+      throw new Error(`TEST 7 FAILED: Certificate was not transitioned to REJECTED!`);
+    }
+    console.log(`  Rejected Certificate ID : ${rejectCertId}`);
+    console.log(`  Status                  : ${dataReject.certificate.status}`);
+    console.log(`  Reason                  : "${dataReject.certificate.rejectionReason}"`);
+    console.log(`  Rejected By             : ${dataReject.certificate.rejectedBy.officialName}`);
+
+    // Verify public check of rejected certificate
+    const resVerifyReject = await fetch(`${BASE_URL}/api/verify/${rejectCertId}`);
+    const dataVerifyReject = await resVerifyReject.json();
+    if (dataVerifyReject.valid !== false || dataVerifyReject.status !== 'REJECTED') {
+      throw new Error(`TEST 7 FAILED: Public verification did not report REJECTED status!`);
+    }
+    console.log('>>> TEST 7 PASSED: Certificate rejection workflow verified successfully');
+
+    // ----------------------------------------------------
     // SUMMARY
     // ----------------------------------------------------
-    console.log('====================================================');
-    console.log('  ALL 6 MILESTONE 30% TESTS PASSED SUCCESSFULLY!  ');
+    console.log('\n====================================================');
+    console.log('  ALL 7 MILESTONE 30% TESTS PASSED SUCCESSFULLY!  ');
     console.log('====================================================');
 
   } catch (error) {

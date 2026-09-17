@@ -91,6 +91,15 @@ const certificateSchema = new mongoose.Schema({
     index: true
   },
 
+  rejectionReason: {
+    type: String
+  },
+  rejectedBy: {
+    officialId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    officialName: String,
+    rejectedAt: Date
+  },
+
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

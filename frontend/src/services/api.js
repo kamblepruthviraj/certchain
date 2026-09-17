@@ -63,6 +63,11 @@ export const api = {
       request(`/certificates/${id}/approve`, {
         method: 'POST'
       }),
+    reject: (id, reason) =>
+      request(`/certificates/${id}/reject`, {
+        method: 'POST',
+        body: JSON.stringify({ reason })
+      }),
     getStats: () => request('/certificates/stats'),
     getChainStatus: () => request('/certificates/chain-status'),
     simulateTamper: (id, tamperedCgpa) =>

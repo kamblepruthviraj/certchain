@@ -14,6 +14,7 @@ router.get('/:id', verifyToken, certificateController.getCertificateById);
 
 // 2-Official Approval workflow
 router.post('/:id/approve', verifyToken, requireRoles('Admin', 'University Official'), certificateController.approveCertificate);
+router.post('/:id/reject', verifyToken, requireRoles('Admin', 'University Official'), certificateController.rejectCertificate);
 
 // Interactive tamper testing helpers for PBL demo
 router.post('/:id/tamper-test', verifyToken, certificateController.simulateTamper);

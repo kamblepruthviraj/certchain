@@ -152,6 +152,35 @@ export default function CertDetailsPage({ certId, setView, setVerifyCertId }) {
           </div>
         </div>
 
+        {cert.status === 'REJECTED' && (
+          <div
+            style={{
+              padding: '1rem 1.25rem',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              color: '#fca5a5',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.75rem'
+            }}
+          >
+            <AlertTriangle size={20} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div>
+              <div style={{ fontWeight: 700 }}>Certificate Formally Rejected</div>
+              <div style={{ fontSize: '0.875rem', marginTop: '0.2rem' }}>
+                Reason: {cert.rejectionReason || 'Rejected during administrative review'}
+              </div>
+              {cert.rejectedBy && cert.rejectedBy.officialName && (
+                <div style={{ fontSize: '0.8rem', color: '#f87171', marginTop: '0.25rem' }}>
+                  Rejected by: {cert.rejectedBy.officialName} on {new Date(cert.rejectedBy.rejectedAt).toLocaleString()}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Academic Details Grid */}
         <div
           style={{
@@ -324,7 +353,7 @@ export default function CertDetailsPage({ certId, setView, setVerifyCertId }) {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
           <Bug size={22} color="var(--danger)" />
-          <h3 style={{ fontSize: '1.15rem' }}>PBL Demonstration Sandbox: Tamper Detection (Module 8)</h3>
+          <h3 style={{ fontSize: '1.15rem' }}>Interactive Security Sandbox: Tamper Detection</h3>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
           Simulate a malicious attacker directly modifying the student's grade in the database without recalculating the hash chain. When verified, the system will immediately flag the modification and output a SHA-256 digest mismatch.
