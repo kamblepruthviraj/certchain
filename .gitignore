@@ -26,5 +26,9 @@ dist-ssr
 # Documentation (hidden from repository)
 docs/
 *.pdf
+
+# Environment variables (hidden from repository)
 .env
-.env.example
+.env*
+*.env
+*.env*
