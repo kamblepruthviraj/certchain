@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Documentation (hidden from repository)
+docs/
+*.pdf
