@@ -113,14 +113,33 @@ export default function LoginPage({ onLoginSuccess }) {
               }}
             >
               <Sparkles size={13} />
-              Official Demo Quick Logins
+              Role Demo Quick Logins
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ justifyContent: 'flex-start', fontSize: '0.8rem' }}
+                onClick={() => handleQuickLogin('verifier@company.com', 'VerifierPassword123!')}
+                id="login-verifier-btn"
+              >
+                🔍 <strong>Verifier / Normal User:</strong> Employer Verifier
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ justifyContent: 'flex-start', fontSize: '0.8rem' }}
+                onClick={() => handleQuickLogin('student@univ.edu', 'StudentPassword123!')}
+                id="login-student-btn"
+              >
+                🎓 <strong>Student:</strong> Rahul S Verma (1RV23CS042)
+              </button>
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
                 style={{ justifyContent: 'flex-start', fontSize: '0.8rem' }}
                 onClick={() => handleQuickLogin('official1@univ.edu', 'OfficialPassword123!')}
+                id="login-official1-btn"
               >
                 👤 <strong>Official 1:</strong> Dr. Ramesh Sharma (Registrar)
               </button>
@@ -129,6 +148,7 @@ export default function LoginPage({ onLoginSuccess }) {
                 className="btn btn-secondary btn-sm"
                 style={{ justifyContent: 'flex-start', fontSize: '0.8rem' }}
                 onClick={() => handleQuickLogin('official2@univ.edu', 'OfficialPassword123!')}
+                id="login-official2-btn"
               >
                 👤 <strong>Official 2:</strong> Prof. Ananya Sen (Dean)
               </button>
@@ -137,6 +157,7 @@ export default function LoginPage({ onLoginSuccess }) {
                 className="btn btn-secondary btn-sm"
                 style={{ justifyContent: 'flex-start', fontSize: '0.8rem' }}
                 onClick={() => handleQuickLogin('admin@univ.edu', 'AdminPassword123!')}
+                id="login-admin-btn"
               >
                 🛡️ <strong>Admin:</strong> System Administrator
               </button>
@@ -195,8 +216,10 @@ export default function LoginPage({ onLoginSuccess }) {
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
               >
+                <option value="Verifier">Verifier / Public User</option>
+                <option value="Student">Student</option>
                 <option value="University Official">University Official</option>
-                <option value="Admin">Admin</option>
+                <option value="Admin">Administrator</option>
               </select>
             </div>
           )}

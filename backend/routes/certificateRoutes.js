@@ -8,6 +8,11 @@ router.get('/stats', verifyToken, certificateController.getStats);
 router.get('/chain-status', verifyToken, certificateController.getChainStatus);
 router.get('/pending', verifyToken, requireRoles('Admin', 'University Official'), certificateController.getPendingCertificates);
 
+// Normal user / verifier requests and dashboard activity
+router.get('/my-requests', verifyToken, certificateController.getMyRequests);
+router.post('/request', verifyToken, certificateController.createCertificateRequest);
+router.get('/verifier-stats', verifyToken, certificateController.getVerifierDashboardStats);
+
 router.post('/', verifyToken, requireRoles('Admin', 'University Official'), certificateController.createCertificate);
 router.get('/', verifyToken, certificateController.getAllCertificates);
 router.get('/:id', verifyToken, certificateController.getCertificateById);

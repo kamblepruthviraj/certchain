@@ -1,10 +1,20 @@
 const Certificate = require('../models/Certificate');
+const CertificateRequest = require('../models/CertificateRequest');
+const AuditLog = require('../models/AuditLog');
+const MerkleBatch = require('../models/MerkleBatch');
+const MerkleRoot = require('../models/MerkleRoot');
+const QRCode = require('qrcode');
 const {
   buildCanonicalData,
   generateCertificateHash,
   verifyCertificateIntegrity,
   verifyEntireChain
 } = require('../utils/hash');
+const merkleService = require('../services/merkleService');
+const thresholdSignService = require('../services/thresholdSignService');
+const timestampService = require('../services/timestampService');
+const keyEvolutionService = require('../services/keyEvolutionService');
+const { logSecurityEvent } = require('../services/auditService');
 
 /**
  * Helper to generate a sequential unique certificate ID for the current year.
@@ -83,6 +93,19 @@ exports.createCertificate = async (req, res) => {
     // Compute SHA-256 hash chaining previousHash + canonicalData
     const certificateHash = generateCertificateHash(previousHash, canonicalData);
 
+    // Generate Verification QR Code data URL
+    const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify/${certificateId}`;
+    const qrCodeDataUrl = await QRCode.toDataURL(verifyUrl, {
+      margin: 1,
+      width: 250,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff'
+      }
+    });
+
+    const activeKeyVer = await keyEvolutionService.getActiveKeyVersion();
+
     const certificate = await Certificate.create({
       certificateId,
       studentName,
@@ -96,8 +119,20 @@ exports.createCertificate = async (req, res) => {
       previousHash,
       certificateHash,
       approvals: [],
+      thresholdSignatures: [],
+      keyVersion: activeKeyVer ? activeKeyVer.version : 1,
+      qrCodeDataUrl,
+      recipientEmail: req.body.recipientEmail ? req.body.recipientEmail.toLowerCase().trim() : undefined,
       status: 'PENDING_APPROVAL',
       createdBy: req.user._id
+    });
+
+    // Record audit event
+    await logSecurityEvent(req, {
+      action: 'CERTIFICATE_CREATE',
+      certificateId,
+      result: 'SUCCESS',
+      metadata: { studentName, usn: usn.toUpperCase().trim(), course }
     });
 
     return res.status(201).json({
@@ -262,7 +297,14 @@ exports.approveCertificate = async (req, res) => {
       });
     }
 
-    // Record this official's approval
+    // 1. Generate real Ed25519 Cryptographic Digital Signature over the certificate hash
+    const signatureResult = thresholdSignService.signCertificateHash(
+      officialUser.email,
+      certificate.certificateHash,
+      certificate.keyVersion || 1
+    );
+
+    // Record both administrative approval and cryptographic signature
     certificate.approvals.push({
       officialId: officialUser._id,
       officialName: officialUser.name,
@@ -270,11 +312,111 @@ exports.approveCertificate = async (req, res) => {
       approvedAt: new Date()
     });
 
-    const REQUIRED_APPROVALS = 2;
-    const currentApprovalCount = certificate.approvals.length;
+    certificate.thresholdSignatures.push({
+      officialId: officialUser._id,
+      officialName: officialUser.name,
+      keyId: signatureResult.keyId,
+      signature: signatureResult.signature,
+      algorithm: signatureResult.algorithm,
+      signedAt: new Date()
+    });
 
-    if (currentApprovalCount >= REQUIRED_APPROVALS) {
+    // 2. Validate 2-of-3 Cryptographic Threshold Quorum
+    const keyVersionDoc = await keyEvolutionService.getKeyVersion(certificate.keyVersion || 1);
+    const quorum = thresholdSignService.validateThresholdQuorum(
+      certificate,
+      keyVersionDoc ? keyVersionDoc.committee : [],
+      2 // 2-of-3 threshold
+    );
+
+    const REQUIRED_THRESHOLD = 2;
+    const currentApprovalCount = certificate.thresholdSignatures.length;
+
+    // 3. When threshold quorum is reached, atomically transition to ISSUED
+    if (quorum.isValid && certificate.status !== 'ISSUED') {
       certificate.status = 'ISSUED';
+
+      // 4. Issue Cryptographic Timestamp Token from Internal TSA
+      const timestampRec = await timestampService.issueTimestampProof(
+        certificate.certificateHash,
+        'CERTIFICATE',
+        certificate.certificateId
+      );
+      certificate.timestampRecordId = timestampRec._id;
+      certificate.timestampProof = {
+        timestamp: timestampRec.timestamp,
+        timestampAuthority: timestampRec.timestampAuthority,
+        signature: timestampRec.signature
+      };
+
+      // 5. Add to persistent Merkle Tree Batch & Derive Merkle Proof
+      let activeBatch = await MerkleBatch.findOne({ status: 'OPEN' });
+      if (!activeBatch) {
+        const batchCount = await MerkleBatch.countDocuments();
+        activeBatch = new MerkleBatch({
+          batchId: `BATCH-2026-${String(batchCount + 1).padStart(4, '0')}`,
+          leafHashes: [],
+          certificateIds: [],
+          treeVersion: 1,
+          status: 'OPEN'
+        });
+      }
+
+      const leafHash = merkleService.deriveLeafHash(certificate.certificateHash);
+      if (!activeBatch.leafHashes.includes(leafHash)) {
+        activeBatch.leafHashes.push(leafHash);
+        activeBatch.certificateIds.push(certificate.certificateId);
+      }
+      activeBatch.certificateCount = activeBatch.leafHashes.length;
+
+      // Recompute batch Merkle Root
+      const newRoot = merkleService.generateMerkleRoot(activeBatch.leafHashes);
+      activeBatch.rootHash = newRoot;
+      await activeBatch.save();
+
+      // Upsert into public zero-PII Merkle Root registry
+      await MerkleRoot.findOneAndUpdate(
+        { batchId: activeBatch.batchId },
+        {
+          batchId: activeBatch.batchId,
+          rootHash: newRoot,
+          treeVersion: activeBatch.treeVersion,
+          certificateCount: activeBatch.certificateCount
+        },
+        { upsert: true, new: true }
+      );
+
+      // Generate and attach Merkle Proof for this certificate
+      const merkleProof = merkleService.generateMerkleProof(activeBatch.leafHashes, leafHash);
+      certificate.merkleLeafHash = leafHash;
+      certificate.merkleRoot = newRoot;
+      certificate.merkleProof = merkleProof;
+      certificate.batchId = activeBatch.batchId;
+
+      // Log Certificate Issuance Audit Event
+      await logSecurityEvent(req, {
+        action: 'CERTIFICATE_ISSUE',
+        certificateId: certificate.certificateId,
+        result: 'SUCCESS',
+        metadata: {
+          approvals: currentApprovalCount,
+          merkleRoot: newRoot,
+          batchId: activeBatch.batchId,
+          keyVersion: certificate.keyVersion
+        }
+      });
+    } else {
+      // Log Single Signature Audit Event
+      await logSecurityEvent(req, {
+        action: 'OFFICIAL_SIGN',
+        certificateId: certificate.certificateId,
+        result: 'SUCCESS',
+        metadata: {
+          signaturesCount: currentApprovalCount,
+          requiredThreshold: REQUIRED_THRESHOLD,
+          keyId: signatureResult.keyId
+        }
+      });
     }
 
     await certificate.save();
@@ -282,12 +424,13 @@ exports.approveCertificate = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: certificate.status === 'ISSUED'
-        ? `Certificate fully approved (${currentApprovalCount}/${REQUIRED_APPROVALS}) and status updated to ISSUED.`
-        : `Approval recorded (${currentApprovalCount}/${REQUIRED_APPROVALS}). Awaiting second official approval.`,
+        ? `Certificate reached cryptographic 2-of-3 threshold quorum (${currentApprovalCount}/${REQUIRED_THRESHOLD}), Merkle tree batch committed, and status updated to ISSUED.`
+        : `Cryptographic signature recorded (${currentApprovalCount}/${REQUIRED_THRESHOLD}). Awaiting second authorized official signature.`,
       certificate,
       approvalCount: currentApprovalCount,
-      requiredApprovals: REQUIRED_APPROVALS,
-      status: certificate.status
+      requiredApprovals: REQUIRED_THRESHOLD,
+      status: certificate.status,
+      thresholdQuorum: quorum
     });
   } catch (error) {
     console.error('Approval error:', error);
@@ -346,6 +489,13 @@ exports.rejectCertificate = async (req, res) => {
     };
 
     await certificate.save();
+
+    await logSecurityEvent(req, {
+      action: 'CERTIFICATE_REJECT',
+      certificateId: certificate.certificateId,
+      result: 'SUCCESS',
+      metadata: { reason: certificate.rejectionReason, rejectedBy: officialUser.name }
+    });
 
     return res.status(200).json({
       success: true,
@@ -443,6 +593,13 @@ exports.simulateTamper = async (req, res) => {
     // Check integrity to show mismatch
     const integrity = verifyCertificateIntegrity(certificate);
 
+    await logSecurityEvent(req, {
+      action: 'TAMPER_SIMULATED',
+      certificateId: certificate.certificateId,
+      result: 'SUCCESS',
+      metadata: { previousCgpa, newCgpa, hashUnchanged: true }
+    });
+
     return res.status(200).json({
       success: true,
       message: `Simulated tampering applied: CGPA changed from ${previousCgpa} to ${newCgpa} without updating certificateHash.`,
@@ -500,6 +657,13 @@ exports.restoreTampered = async (req, res) => {
 
     const integrity = verifyCertificateIntegrity(certificate);
 
+    await logSecurityEvent(req, {
+      action: 'TAMPER_RESTORED',
+      certificateId: certificate.certificateId,
+      result: 'SUCCESS',
+      metadata: { restoredCgpa: certificate.cgpa }
+    });
+
     return res.status(200).json({
       success: true,
       message: 'Certificate data restored and cryptographic integrity re-established.',
@@ -514,3 +678,139 @@ exports.restoreTampered = async (req, res) => {
     });
   }
 };
+
+/**
+ * Get certificate requests relevant to the current user
+ */
+exports.getMyRequests = async (req, res) => {
+  try {
+    const user = req.user;
+    let query = {};
+
+    // Normal users / students / verifiers see their own requests
+    if (user.role === 'Student' || user.role === 'Verifier') {
+      const orConditions = [{ userId: user._id }, { userEmail: user.email.toLowerCase() }];
+      if (user.studentUsn) {
+        orConditions.push({ studentUsn: user.studentUsn });
+      }
+      query = { $or: orConditions };
+    }
+
+    const requests = await CertificateRequest.find(query).sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: requests.length,
+      requests
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching certificate requests.',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Submit a new certificate or transcript request
+ */
+exports.createCertificateRequest = async (req, res) => {
+  try {
+    const user = req.user;
+    const { certificateType, purpose, comments, studentUsn } = req.body;
+
+    if (!certificateType) {
+      return res.status(400).json({
+        success: false,
+        message: 'certificateType is required.'
+      });
+    }
+
+    const currentYear = new Date().getFullYear();
+    const count = await CertificateRequest.countDocuments();
+    const requestId = `REQ-${currentYear}-${String(count + 1).padStart(4, '0')}`;
+
+    const newRequest = await CertificateRequest.create({
+      requestId,
+      userId: user._id,
+      userName: user.name,
+      userEmail: user.email.toLowerCase(),
+      studentUsn: (studentUsn || user.studentUsn || '').toUpperCase().trim(),
+      certificateType,
+      purpose: purpose || 'Verification & Official Records',
+      comments: comments || '',
+      status: 'Pending',
+      requestedDate: new Date()
+    });
+
+    await logSecurityEvent(req, {
+      action: 'CERTIFICATE_REQUEST_SUBMITTED',
+      result: 'SUCCESS',
+      metadata: { requestId, certificateType }
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: `Request ${requestId} submitted successfully.`,
+      request: newRequest
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Error submitting certificate request.',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Normal user / verifier verification dashboard stats & recent activity
+ */
+exports.getVerifierDashboardStats = async (req, res) => {
+  try {
+    const user = req.user;
+    const totalVerifications = await AuditLog.countDocuments({ action: 'PUBLIC_VERIFY' });
+    const successfulVerifications = await AuditLog.countDocuments({ action: 'PUBLIC_VERIFY', result: 'SUCCESS' });
+    const failedVerifications = await AuditLog.countDocuments({ action: 'PUBLIC_VERIFY', result: 'FAILURE' });
+
+    let pendingRequestsCount = 0;
+    if (user) {
+      const orConditions = [{ userId: user._id }, { userEmail: user.email.toLowerCase() }];
+      if (user.studentUsn) orConditions.push({ studentUsn: user.studentUsn });
+      pendingRequestsCount = await CertificateRequest.countDocuments({
+        $or: orConditions,
+        status: { $in: ['Pending', 'In Review'] }
+      });
+    }
+
+    const recentLogs = await AuditLog.find({ action: 'PUBLIC_VERIFY' })
+      .sort({ createdAt: -1 })
+      .limit(10);
+
+    const recentActivity = recentLogs.map((log) => ({
+      certificateId: log.certificateId || 'UNKNOWN',
+      date: log.createdAt,
+      result: log.result === 'SUCCESS' ? 'Verified' : 'Failed',
+      success: log.result === 'SUCCESS'
+    }));
+
+    return res.status(200).json({
+      success: true,
+      stats: {
+        totalVerifications: totalVerifications || 0,
+        successfulVerifications: successfulVerifications || 0,
+        failedVerifications: failedVerifications || 0,
+        pendingRequests: pendingRequestsCount || 0
+      },
+      recentActivity
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching verification dashboard statistics.',
+      error: error.message
+    });
+  }
+};
+

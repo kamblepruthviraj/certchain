@@ -1,5 +1,15 @@
 import React, { useState } from 'react';
-import { FilePlus, ShieldAlert, CheckCircle2, ArrowLeft, Wand2 } from 'lucide-react';
+import {
+  FilePlus,
+  CheckCircle2,
+  ArrowLeft,
+  Wand2,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  AlertCircle
+} from 'lucide-react';
 import { api } from '../services/api';
 import HashBadge from '../components/HashBadge';
 
@@ -17,6 +27,7 @@ export default function CreateCertPage({ setView, setSelectedCertId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [createdCert, setCreatedCert] = useState(null);
+  const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
 
   const fillSampleData = () => {
     const samples = [
@@ -26,7 +37,7 @@ export default function CreateCertPage({ setView, setSelectedCertId }) {
         course: 'B.E. Computer Science & Engineering',
         institution: 'St. Joseph Engineering College',
         cgpa: '8.92',
-        issueDate: '2026-06-15',
+        issueDate: new Date().toISOString().split('T')[0],
         certificateType: 'Bachelor of Engineering'
       },
       {
@@ -35,7 +46,7 @@ export default function CreateCertPage({ setView, setSelectedCertId }) {
         course: 'B.E. Information Science & Engineering',
         institution: 'St. Joseph Engineering College',
         cgpa: '9.15',
-        issueDate: '2026-06-15',
+        issueDate: new Date().toISOString().split('T')[0],
         certificateType: 'Bachelor of Engineering'
       },
       {
@@ -44,7 +55,7 @@ export default function CreateCertPage({ setView, setSelectedCertId }) {
         course: 'B.E. Electronics & Communication',
         institution: 'St. Joseph Engineering College',
         cgpa: '8.65',
-        issueDate: '2026-06-15',
+        issueDate: new Date().toISOString().split('T')[0],
         certificateType: 'Bachelor of Engineering'
       }
     ];
@@ -77,24 +88,26 @@ export default function CreateCertPage({ setView, setSelectedCertId }) {
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+    <div style={{ maxWidth: '820px', margin: '0 auto' }}>
       <button
         className="btn btn-secondary btn-sm"
-        style={{ marginBottom: '1.5rem' }}
+        style={{ marginBottom: '1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
         onClick={() => setView('dashboard')}
+        id="back-to-dashboard-btn"
       >
         <ArrowLeft size={15} />
         Back to Dashboard
       </button>
 
       {createdCert ? (
+        /* Success Screen after creation */
         <div className="glass-panel" style={{ padding: '2.5rem', textAlign: 'center' }}>
           <div
             style={{
               width: '64px',
               height: '64px',
               borderRadius: '50%',
-              background: 'var(--success-bg)',
+              background: 'rgba(16, 185, 129, 0.15)',
               border: '2px solid var(--border-success)',
               display: 'inline-flex',
               alignItems: 'center',
@@ -107,15 +120,25 @@ export default function CreateCertPage({ setView, setSelectedCertId }) {
             <CheckCircle2 size={36} />
           </div>
 
-          <h2 style={{ marginBottom: '0.5rem' }}>Certificate Registered Successfully!</h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
-            The certificate block has been cryptographically chained into the registry with status{' '}
-            <strong style={{ color: '#fbbf24' }}>PENDING_APPROVAL</strong>.
+          <h2 style={{ marginBottom: '0.5rem', fontSize: '1.75rem', color: '#fff' }}>
+            Certificate created successfully.
+          </h2>
+
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.75rem' }}>
+            <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>Status:</span>
+            <span className="status-badge badge-pending" style={{ fontSize: '0.9rem', padding: '0.3rem 0.8rem' }}>
+              Pending Approval
+            </span>
+          </div>
+
+          <p style={{ color: 'var(--text-secondary)', maxWidth: '540px', margin: '0 auto 2rem', fontSize: '0.95rem', lineHeight: 1.5 }}>
+            The certificate data has been canonically registered and queued for multi-official review. Authorized university officials can now inspect and sign this record in the Pending Approvals queue.
           </p>
 
+          {/* Clean Summary Card */}
           <div
             style={{
-              background: 'rgba(15, 21, 35, 0.8)',
+              background: 'rgba(15, 21, 35, 0.7)',
               border: '1px solid var(--border-color)',
               borderRadius: 'var(--radius-md)',
               padding: '1.5rem',
@@ -123,31 +146,58 @@ export default function CreateCertPage({ setView, setSelectedCertId }) {
               marginBottom: '2rem'
             }}
           >
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
               <div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>CERTIFICATE ID</span>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>CERTIFICATE ID</span>
+                <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#fff', marginTop: '0.2rem' }}>
                   {createdCert.certificateId}
                 </div>
               </div>
+
               <div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>STUDENT & USN</span>
-                <div style={{ fontWeight: 600, color: '#fff' }}>
-                  {createdCert.studentName} ({createdCert.usn})
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>STUDENT NAME</span>
+                <div style={{ fontSize: '1.05rem', fontWeight: 600, color: '#fff', marginTop: '0.2rem' }}>
+                  {createdCert.studentName}
+                </div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>USN / STUDENT ID</span>
+                <div style={{ fontSize: '1rem', fontWeight: 600, color: '#38bdf8', fontFamily: 'monospace', marginTop: '0.2rem' }}>
+                  {createdCert.usn}
+                </div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>PROGRAM & GRADE</span>
+                <div style={{ fontSize: '0.95rem', color: '#cbd5e1', marginTop: '0.2rem' }}>
+                  {createdCert.course} • CGPA: <strong>{createdCert.cgpa}</strong>
                 </div>
               </div>
             </div>
 
-            <div style={{ marginBottom: '1rem' }}>
-              <HashBadge hash={createdCert.previousHash} label="Previous Block Hash" truncate={false} />
-            </div>
+            {/* Optional Technical Expandable View */}
+            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
+                style={{ fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                {showTechnicalDetails ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                {showTechnicalDetails ? 'Hide Technical Details' : 'Show Technical Cryptographic Details'}
+              </button>
 
-            <div>
-              <HashBadge hash={createdCert.certificateHash} label="Generated SHA-256 Current Hash" truncate={false} />
+              {showTechnicalDetails && (
+                <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <HashBadge hash={createdCert.previousHash} label="Chained Predecessor Hash" truncate={false} />
+                  <HashBadge hash={createdCert.certificateHash} label="Generated SHA-256 Block Hash" truncate={false} />
+                </div>
+              )}
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
             <button
               className="btn btn-secondary"
               onClick={() => {
@@ -162,178 +212,200 @@ export default function CreateCertPage({ setView, setSelectedCertId }) {
                   certificateType: 'Bachelor of Engineering'
                 });
               }}
+              id="issue-another-btn"
             >
-              Issue Another
+              Issue Another Certificate
             </button>
+
             <button
               className="btn btn-primary"
               onClick={() => {
                 setSelectedCertId(createdCert.certificateId);
                 setView('pending');
               }}
+              id="go-to-approvals-btn"
             >
-              Go to Approval Queue (0/2)
+              Go to Pending Approvals
             </button>
           </div>
         </div>
       ) : (
+        /* Form for creating certificate */
         <div className="glass-panel" style={{ padding: '2.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <h2>Create Academic Certificate</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                Module 2 & 3: Deterministic canonical data structure and SHA-256 hash chaining
+              <h1 style={{ fontSize: '1.75rem', marginBottom: '0.35rem' }}>Issue Academic Certificate</h1>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+                The university official is creating an academic certificate for a student.
               </p>
             </div>
+
             <button
               type="button"
               className="btn btn-secondary btn-sm"
               onClick={fillSampleData}
               title="Populate test student data for rapid evaluation"
+              id="autofill-sample-btn"
             >
               <Wand2 size={15} />
-              Autofill Sample
+              Autofill Sample Data
             </button>
           </div>
 
           {error && (
-            <div className="alert alert-danger">
-              <ShieldAlert size={18} />
+            <div className="alert alert-danger" style={{ marginBottom: '1.5rem' }}>
+              <AlertCircle size={18} />
               <span>{error}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '1.75rem' }}>
+              {/* Student Full Name */}
               <div className="form-group">
-                <label className="form-label">Student Full Name *</label>
+                <label className="form-label">
+                  Student Full Name <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
                 <input
                   type="text"
                   name="studentName"
-                  required
-                  placeholder="e.g. Pruthviraj S Kamble"
                   className="form-input"
+                  placeholder="e.g. Pruthviraj S Kamble"
                   value={formData.studentName}
                   onChange={handleChange}
-                  id="cert-studentName"
+                  required
+                  id="input-student-name"
                 />
               </div>
 
+              {/* USN / Student ID */}
               <div className="form-group">
-                <label className="form-label">USN / Student ID *</label>
+                <label className="form-label">
+                  USN / Student ID <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
                 <input
                   type="text"
                   name="usn"
-                  required
-                  placeholder="e.g. 4SO23CS177"
                   className="form-input"
+                  placeholder="e.g. 4SO23CS177"
                   value={formData.usn}
                   onChange={handleChange}
-                  id="cert-usn"
+                  required
+                  style={{ textTransform: 'uppercase' }}
+                  id="input-usn"
                 />
               </div>
-            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.25rem' }}>
+              {/* Course / Program */}
               <div className="form-group">
-                <label className="form-label">Course / Program *</label>
+                <label className="form-label">
+                  Course / Program <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
                 <input
                   type="text"
                   name="course"
-                  required
-                  placeholder="e.g. B.E. Computer Science & Engineering"
                   className="form-input"
+                  placeholder="e.g. B.E. Computer Science & Engineering"
                   value={formData.course}
                   onChange={handleChange}
-                  id="cert-course"
+                  required
+                  id="input-course"
                 />
               </div>
 
+              {/* CGPA / Grade */}
               <div className="form-group">
-                <label className="form-label">CGPA / Grade *</label>
+                <label className="form-label">
+                  CGPA / Grade (0.00 - 10.00) <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
                 <input
-                  type="text"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="10"
                   name="cgpa"
-                  required
-                  placeholder="e.g. 8.75"
                   className="form-input"
+                  placeholder="e.g. 8.92"
                   value={formData.cgpa}
                   onChange={handleChange}
-                  id="cert-cgpa"
+                  required
+                  id="input-cgpa"
                 />
               </div>
-            </div>
 
-            <div className="form-group">
-              <label className="form-label">Awarding Institution *</label>
-              <input
-                type="text"
-                name="institution"
-                required
-                placeholder="e.g. St. Joseph Engineering College"
-                className="form-input"
-                value={formData.institution}
-                onChange={handleChange}
-                id="cert-institution"
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+              {/* Awarding Institution */}
               <div className="form-group">
-                <label className="form-label">Certificate Type *</label>
+                <label className="form-label">
+                  Awarding Institution <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  name="institution"
+                  className="form-input"
+                  placeholder="e.g. St. Joseph Engineering College"
+                  value={formData.institution}
+                  onChange={handleChange}
+                  required
+                  id="input-institution"
+                />
+              </div>
+
+              {/* Certificate Type */}
+              <div className="form-group">
+                <label className="form-label">
+                  Certificate Type <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
                 <select
                   name="certificateType"
                   className="form-select"
                   value={formData.certificateType}
                   onChange={handleChange}
-                  id="cert-type"
+                  required
+                  id="input-certificate-type"
                 >
-                  <option value="Bachelor of Engineering">Bachelor of Engineering Degree</option>
-                  <option value="Master of Technology">Master of Technology Degree</option>
-                  <option value="Diploma in Engineering">Diploma in Engineering</option>
-                  <option value="Academic Excellence Award">Academic Excellence Award</option>
+                  <option value="Bachelor of Engineering">Bachelor of Engineering (B.E.)</option>
+                  <option value="Master of Technology">Master of Technology (M.Tech)</option>
+                  <option value="Master of Business Administration">Master of Business Administration (MBA)</option>
+                  <option value="Master of Computer Applications">Master of Computer Applications (MCA)</option>
+                  <option value="Doctor of Philosophy">Doctor of Philosophy (Ph.D.)</option>
+                  <option value="Academic Transcript">Official Academic Transcript</option>
                 </select>
               </div>
 
+              {/* Issue Date */}
               <div className="form-group">
-                <label className="form-label">Issue Date *</label>
+                <label className="form-label">
+                  Issue Date <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
                 <input
                   type="date"
                   name="issueDate"
-                  required
                   className="form-input"
                   value={formData.issueDate}
                   onChange={handleChange}
-                  id="cert-issueDate"
+                  required
+                  id="input-issue-date"
                 />
               </div>
             </div>
 
-            {/* Cryptographic note */}
-            <div
-              style={{
-                background: 'rgba(99, 102, 241, 0.08)',
-                border: '1px solid rgba(99, 102, 241, 0.2)',
-                borderRadius: 'var(--radius-md)',
-                padding: '1rem',
-                fontSize: '0.85rem',
-                color: 'var(--text-secondary)',
-                marginBottom: '1.5rem'
-              }}
-            >
-              🔒 <strong>Cryptographic Execution:</strong> Submission will serialize the canonical payload, query the preceding certificate's hash, compute <code>SHA256(previousHash + canonicalData)</code>, and register the block with initial status <code>PENDING_APPROVAL</code>.
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setView('dashboard')}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={loading}
+                id="create-certificate-btn"
+              >
+                {loading ? 'Submitting...' : 'Create Certificate'}
+              </button>
             </div>
-
-            <button
-              type="submit"
-              className="btn btn-primary"
-              style={{ width: '100%' }}
-              disabled={loading}
-              id="submit-create-cert"
-            >
-              <FilePlus size={18} />
-              {loading ? 'Generating SHA-256 Block...' : 'Generate & Chain Certificate'}
-            </button>
           </form>
         </div>
       )}

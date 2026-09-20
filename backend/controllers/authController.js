@@ -35,9 +35,9 @@ exports.register = async (req, res) => {
       });
     }
 
-    const assignedRole = (role && ['Admin', 'University Official'].includes(role))
+    const assignedRole = (role && ['Admin', 'University Official', 'Verifier', 'Student'].includes(role))
       ? role
-      : 'University Official';
+      : 'Verifier';
 
     const passwordHash = await User.hashPassword(password);
     const user = await User.create({

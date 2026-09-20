@@ -79,11 +79,62 @@ export const api = {
       request(`/certificates/${id}/restore-test`, {
         method: 'POST',
         body: JSON.stringify({ originalCgpa })
-      })
+      }),
+    getMyRequests: () => request('/certificates/my-requests'),
+    createRequest: (payload) =>
+      request('/certificates/request', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      }),
+    getVerifierStats: () => request('/certificates/verifier-stats')
   },
 
   // Public Verification (No auth required)
   verify: {
     check: (certificateId) => request(`/verify/${certificateId}`)
+  },
+
+  // Public Merkle Tree Registry
+  merkle: {
+    getPublicRoot: () => request('/public/merkle-root'),
+    getAllRoots: () => request('/public/merkle-roots'),
+    getBatch: (batchId) => request(`/public/merkle-batch/${batchId}`),
+    verifyProof: (leafHash, proof, rootHash) =>
+      request('/public/verify-proof', {
+        method: 'POST',
+        body: JSON.stringify({ leafHash, proof, rootHash })
+      })
+  },
+
+  // Secure Delivery (X25519 DH + AES-256-GCM)
+  delivery: {
+    generateKeyPair: () =>
+      request('/secure-delivery/generate-keypair', { method: 'POST' }),
+    encrypt: (certificateId, recipientPublicKey, recipientEmail) =>
+      request('/secure-delivery/encrypt', {
+        method: 'POST',
+        body: JSON.stringify({ certificateId, recipientPublicKey, recipientEmail })
+      }),
+    decrypt: (envelopeId, recipientPrivateKey, tamperedCiphertext) =>
+      request('/secure-delivery/decrypt', {
+        method: 'POST',
+        body: JSON.stringify({ envelopeId, recipientPrivateKey, tamperedCiphertext })
+      }),
+    getEnvelope: (certId) => request(`/secure-delivery/${certId}`)
+  },
+
+  // Security Operations Center (Audit, Keys, Chain Audit)
+  security: {
+    verifyChain: () => request('/security/verify-chain'),
+    getKeyVersions: () => request('/security/keys'),
+    rotateKeys: (reason) =>
+      request('/security/keys/rotate', {
+        method: 'POST',
+        body: JSON.stringify({ reason })
+      }),
+    getAuditLogs: (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      return request(`/security/audit-logs${query ? `?${query}` : ''}`);
+    }
   }
 };

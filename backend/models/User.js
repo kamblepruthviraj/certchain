@@ -21,9 +21,21 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['Admin', 'University Official'],
+    enum: ['Admin', 'University Official', 'Student', 'Verifier'],
     default: 'University Official',
     required: true
+  },
+  officialKeyId: {
+    type: String,
+    trim: true
+  },
+  publicKey: {
+    type: String
+  },
+  studentUsn: {
+    type: String,
+    trim: true,
+    uppercase: true
   },
   createdAt: {
     type: Date,

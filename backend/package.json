@@ -1,19 +1,24 @@
 {
   "name": "secure-cert-backend",
   "version": "1.0.0",
-  "description": "Backend for Secure Digital Certificate Management System - 30% Milestone",
+  "description": "Backend for CertChain - Secure Digital Certificate Management System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node tests/milestone30.test.js"
+    "test": "node tests/certchain_100.test.js",
+    "test:100": "node tests/certchain_100.test.js",
+    "test:milestone30": "node tests/milestone30.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.3.1"
+    "mongoose": "^8.3.1",
+    "qrcode": "^1.5.4"
   }
 }

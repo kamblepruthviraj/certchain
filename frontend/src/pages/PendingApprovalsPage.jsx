@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { CheckSquare, UserCheck, AlertCircle, CheckCircle2, ArrowRight, Shield, RefreshCw, XCircle } from 'lucide-react';
+import {
+  CheckSquare,
+  UserCheck,
+  AlertCircle,
+  CheckCircle2,
+  Eye,
+  Check,
+  X,
+  Shield,
+  RefreshCw,
+  Clock,
+  FileText
+} from 'lucide-react';
 import { api } from '../services/api';
-import HashBadge from '../components/HashBadge';
 
 export default function PendingApprovalsPage({ user, setView, setSelectedCertId, onApprovalChanged }) {
   const [pendingCerts, setPendingCerts] = useState([]);
@@ -18,7 +29,7 @@ export default function PendingApprovalsPage({ user, setView, setSelectedCertId,
         setPendingCerts(res.data.certificates);
       }
     } catch (err) {
-      console.error('Error fetching pending:', err);
+      console.error('Error fetching pending certificates:', err);
     } finally {
       setLoading(false);
     }
@@ -36,20 +47,20 @@ export default function PendingApprovalsPage({ user, setView, setSelectedCertId,
       if (res.ok) {
         setActionMessage({
           type: 'success',
-          text: res.data.message
+          text: res.data.message || `Certificate ${certId} approved successfully.`
         });
         await fetchPending();
         if (onApprovalChanged) onApprovalChanged();
       } else {
         setActionMessage({
           type: 'danger',
-          text: res.data.message || 'Approval rejected.'
+          text: res.data.message || 'Approval request was rejected by the server.'
         });
       }
     } catch (err) {
       setActionMessage({
         type: 'danger',
-        text: 'Error submitting approval request.'
+        text: 'Error submitting approval request to server.'
       });
     } finally {
       setApprovingId(null);
@@ -58,7 +69,8 @@ export default function PendingApprovalsPage({ user, setView, setSelectedCertId,
 
   const handleReject = async (certId) => {
     const reason = window.prompt('Please enter the reason for rejecting this certificate:');
-    if (reason === null) return; // cancelled
+    if (reason === null) return; // user cancelled prompt
+    
     setRejectingId(certId);
     setActionMessage(null);
     try {
@@ -66,7 +78,7 @@ export default function PendingApprovalsPage({ user, setView, setSelectedCertId,
       if (res.ok) {
         setActionMessage({
           type: 'success',
-          text: `Certificate ${certId} was rejected.`
+          text: `Certificate ${certId} has been rejected.`
         });
         await fetchPending();
         if (onApprovalChanged) onApprovalChanged();
@@ -79,229 +91,300 @@ export default function PendingApprovalsPage({ user, setView, setSelectedCertId,
     } catch (err) {
       setActionMessage({
         type: 'danger',
-        text: 'Error submitting rejection request.'
+        text: 'Error submitting rejection request to server.'
       });
     } finally {
       setRejectingId(null);
     }
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (e) {
+      return dateString;
+    }
+  };
+
+  // Staff roles authorized to approve/reject
+  const isAuthorizedOfficial = user && (user.role === 'Admin' || user.role === 'University Official');
+
   return (
-    <div style={{ maxWidth: '1050px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
+    <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          marginBottom: '2rem',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}
+      >
         <div>
-          <h2>Multi-Official Approval Workflow</h2>
+          <h1 style={{ fontSize: '1.85rem', marginBottom: '0.35rem' }}>Pending Certificate Approvals</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-            2-of-2 ($t$-of-$n$) multi-signature approval queue before issuance
+            Review, sign, and authorize academic credentials before issuance.
           </p>
         </div>
-        <button className="btn btn-secondary btn-sm" onClick={fetchPending}>
-          <RefreshCw size={15} />
-          Refresh Queue
-        </button>
+
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={fetchPending}
+            title="Refresh queue"
+            id="refresh-pending-btn"
+          >
+            <RefreshCw size={14} />
+            Refresh Queue
+          </button>
+        </div>
       </div>
 
+      {/* Action Notification Banner */}
       {actionMessage && (
-        <div className={`alert alert-${actionMessage.type}`}>
+        <div className={`alert alert-${actionMessage.type}`} style={{ marginBottom: '1.5rem' }}>
           {actionMessage.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
           <span>{actionMessage.text}</span>
         </div>
       )}
 
-      {/* Explanatory banner */}
+      {/* Official Status Notice */}
       <div
         className="glass-panel"
         style={{
           padding: '1.25rem 1.5rem',
           marginBottom: '2rem',
           borderLeft: '4px solid var(--accent-primary)',
-          background: 'rgba(99, 102, 241, 0.05)'
+          background: 'rgba(99, 102, 241, 0.05)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem'
         }}
       >
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <Shield size={22} color="var(--accent-primary)" />
+          <Shield size={20} color="var(--accent-primary)" />
           <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-            Signed-in Official: <strong style={{ color: '#fff' }}>{user.name}</strong> ({user.role}).{' '}
-            Issuance requires approvals from <strong>TWO distinct authorized officials</strong>. Once 2 approvals are recorded, the certificate status atomically transitions to <strong style={{ color: 'var(--success)' }}>ISSUED</strong>.
+            Logged in as: <strong style={{ color: '#fff' }}>{user?.name}</strong> ({user?.role}).{' '}
+            Issuance requires approvals from <strong>two distinct authorized officials</strong>.
           </div>
         </div>
+
+        <span
+          style={{
+            fontSize: '0.8rem',
+            padding: '0.2rem 0.65rem',
+            background: 'rgba(255, 255, 255, 0.08)',
+            borderRadius: '999px',
+            color: '#cbd5e1'
+          }}
+        >
+          {pendingCerts.length} Pending Record{pendingCerts.length !== 1 ? 's' : ''}
+        </span>
       </div>
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-          Loading pending approvals queue...
-        </div>
-      ) : pendingCerts.length === 0 ? (
-        <div className="glass-panel" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-          <CheckCircle2 size={48} color="var(--success)" style={{ marginBottom: '1rem', opacity: 0.8 }} />
-          <h3>All Caught Up!</h3>
-          <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', marginBottom: '1.5rem' }}>
-            There are no pending certificates awaiting approval right now.
-          </p>
-          <button className="btn btn-primary" onClick={() => setView('create')}>
-            Issue a New Certificate
-          </button>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {pendingCerts.map((cert) => {
-            const approvalsCount = cert.approvals ? cert.approvals.length : 0;
-            const hasCurrentUserApproved = cert.approvals && cert.approvals.some(
-              (app) => app.officialId === user._id || app.officialName === user.name
-            );
+      {/* Table of Pending Certificates */}
+      <div className="glass-panel" style={{ padding: '1.75rem' }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '3.5rem', color: 'var(--text-secondary)' }}>
+            <RefreshCw size={26} className="spin" style={{ marginBottom: '0.75rem', opacity: 0.6 }} />
+            <p>Loading pending approvals queue...</p>
+          </div>
+        ) : pendingCerts.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-secondary)' }}>
+            <CheckCircle2 size={48} color="var(--success)" style={{ marginBottom: '1rem', opacity: 0.8 }} />
+            <h3 style={{ color: '#fff', marginBottom: '0.5rem' }}>All Caught Up!</h3>
+            <p style={{ maxWidth: '420px', margin: '0 auto 1.5rem', fontSize: '0.92rem' }}>
+              There are currently no pending certificates awaiting approval.
+            </p>
+            <button className="btn btn-primary" onClick={() => setView('create')}>
+              Issue a New Certificate
+            </button>
+          </div>
+        ) : (
+          <div className="table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Certificate ID</th>
+                  <th>Student Name</th>
+                  <th>USN</th>
+                  <th>Program</th>
+                  <th>Created Date</th>
+                  <th>Approval Progress</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingCerts.map((cert) => {
+                  const approvalsCount = cert.approvals ? cert.approvals.length : 0;
+                  const hasCurrentUserApproved =
+                    cert.approvals &&
+                    cert.approvals.some(
+                      (app) => app.officialId === user?._id || app.officialName === user?.name
+                    );
 
-            return (
-              <div
-                key={cert.certificateId}
-                className="glass-panel"
-                style={{
-                  padding: '1.75rem',
-                  border: hasCurrentUserApproved
-                    ? '1px solid rgba(245, 158, 11, 0.3)'
-                    : '1px solid var(--border-color)'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem' }}>
-                      <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff' }}>
-                        {cert.certificateId}
-                      </span>
-                      <span className="status-badge badge-pending">
-                        {cert.status}
-                      </span>
-                      <span
-                        style={{
-                          background: approvalsCount === 1 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-                          color: approvalsCount === 1 ? '#fbbf24' : 'var(--text-secondary)',
-                          fontSize: '0.8rem',
-                          fontWeight: 700,
-                          padding: '0.2rem 0.6rem',
-                          borderRadius: '6px'
-                        }}
-                      >
-                        Approvals: {approvalsCount} / 2
-                      </span>
-                    </div>
+                  return (
+                    <tr key={cert.certificateId}>
+                      {/* Certificate ID */}
+                      <td>
+                        <span style={{ fontWeight: 700, color: '#fff', letterSpacing: '0.02em' }}>
+                          {cert.certificateId}
+                        </span>
+                      </td>
 
-                    <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#fff' }}>
-                      {cert.studentName}{' '}
-                      <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>({cert.usn})</span>
-                    </div>
-                    <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                      {cert.course} • {cert.institution} • CGPA: <strong>{cert.cgpa}</strong>
-                    </div>
-                  </div>
+                      {/* Student Name */}
+                      <td>
+                        <div style={{ fontWeight: 600, color: '#fff' }}>{cert.studentName}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          CGPA: <strong>{cert.cgpa}</strong>
+                        </div>
+                      </td>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => {
-                        setSelectedCertId(cert.certificateId);
-                        setView('details');
-                      }}
-                    >
-                      Inspect Data
-                    </button>
+                      {/* USN */}
+                      <td>
+                        <span style={{ fontFamily: 'monospace', fontSize: '0.88rem', color: '#38bdf8' }}>
+                          {cert.usn}
+                        </span>
+                      </td>
 
-                    <button
-                      className="btn btn-sm"
-                      style={{
-                        background: 'rgba(239, 68, 68, 0.12)',
-                        color: '#fca5a5',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem'
-                      }}
-                      disabled={rejectingId === cert.certificateId || approvingId === cert.certificateId}
-                      onClick={() => handleReject(cert.certificateId)}
-                      id={`reject-btn-${cert.certificateId}`}
-                    >
-                      <XCircle size={15} />
-                      {rejectingId === cert.certificateId ? 'Rejecting...' : 'Reject'}
-                    </button>
+                      {/* Program */}
+                      <td>
+                        <span style={{ fontSize: '0.88rem' }}>{cert.course}</span>
+                      </td>
 
-                    {hasCurrentUserApproved ? (
-                      <div
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.4rem',
-                          padding: '0.5rem 1rem',
-                          background: 'rgba(245, 158, 11, 0.1)',
-                          border: '1px solid rgba(245, 158, 11, 0.3)',
-                          borderRadius: 'var(--radius-md)',
-                          color: '#fbbf24',
-                          fontSize: '0.85rem',
-                          fontWeight: 600
-                        }}
-                      >
-                        <UserCheck size={16} />
-                        Signed by You (Awaiting 2nd Official)
-                      </div>
-                    ) : (
-                      <button
-                        className="btn btn-success"
-                        disabled={approvingId === cert.certificateId}
-                        onClick={() => handleApprove(cert.certificateId)}
-                        id={`approve-btn-${cert.certificateId}`}
-                      >
-                        <CheckSquare size={17} />
-                        {approvingId === cert.certificateId
-                          ? 'Recording Signature...'
-                          : `Approve (${approvalsCount + 1}/2)`}
-                      </button>
-                    )}
-                  </div>
-                </div>
+                      {/* Created Date */}
+                      <td>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          {formatDate(cert.createdAt || cert.issueDate)}
+                        </span>
+                      </td>
 
-                {/* Hashes & Approvals history */}
-                <div
-                  style={{
-                    marginTop: '1.25rem',
-                    paddingTop: '1.25rem',
-                    borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: '1rem'
-                  }}
-                >
-                  <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                    <HashBadge hash={cert.previousHash} label="Previous Hash Link" truncate={true} />
-                    <HashBadge hash={cert.certificateHash} label="SHA-256 Current Hash" truncate={true} />
-                  </div>
+                      {/* Approval Progress */}
+                      <td>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            background: approvalsCount === 1 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                            color: approvalsCount === 1 ? '#fbbf24' : 'var(--text-secondary)',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            padding: '0.2rem 0.55rem',
+                            borderRadius: '6px'
+                          }}
+                        >
+                          <Clock size={12} />
+                          {approvalsCount} / 2 Approvals
+                        </span>
+                      </td>
 
-                  {cert.approvals && cert.approvals.length > 0 && (
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                      <strong>Recorded Approvals:</strong>
-                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
-                        {cert.approvals.map((app, idx) => (
-                          <span
-                            key={idx}
-                            style={{
-                              background: 'rgba(16, 185, 129, 0.1)',
-                              border: '1px solid var(--border-success)',
-                              color: '#a7f3d0',
-                              padding: '0.2rem 0.5rem',
-                              borderRadius: '4px',
-                              fontSize: '0.75rem'
+                      {/* Status */}
+                      <td>
+                        <span className="status-badge badge-pending">
+                          Pending
+                        </span>
+                      </td>
+
+                      {/* Action Buttons: View, Approve, Reject */}
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                          {/* View Button */}
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.65rem' }}
+                            onClick={() => {
+                              setSelectedCertId(cert.certificateId);
+                              setView('details');
                             }}
+                            id={`view-pending-btn-${cert.certificateId}`}
+                            title="View Certificate Details"
                           >
-                            ✓ {app.officialName} ({new Date(app.approvedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+                            <Eye size={13} />
+                            View
+                          </button>
+
+                          {/* Approve & Reject (Authorized Officials only) */}
+                          {isAuthorizedOfficial && (
+                            hasCurrentUserApproved ? (
+                              <span
+                                style={{
+                                  fontSize: '0.78rem',
+                                  color: '#34d399',
+                                  background: 'rgba(16, 185, 129, 0.1)',
+                                  padding: '0.3rem 0.55rem',
+                                  borderRadius: '6px',
+                                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                Signed by You ✓
+                              </span>
+                            ) : (
+                              <>
+                                {/* Approve Button */}
+                                <button
+                                  className="btn btn-primary btn-sm"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    padding: '0.35rem 0.65rem',
+                                    background: 'var(--success)',
+                                    borderColor: 'var(--border-success)'
+                                  }}
+                                  disabled={approvingId === cert.certificateId || rejectingId === cert.certificateId}
+                                  onClick={() => handleApprove(cert.certificateId)}
+                                  id={`approve-btn-${cert.certificateId}`}
+                                  title="Sign and Approve Certificate"
+                                >
+                                  <Check size={13} />
+                                  {approvingId === cert.certificateId ? 'Signing...' : 'Approve'}
+                                </button>
+
+                                {/* Reject Button */}
+                                <button
+                                  className="btn btn-sm"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    padding: '0.35rem 0.65rem',
+                                    background: 'rgba(239, 68, 68, 0.12)',
+                                    color: '#fca5a5',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)'
+                                  }}
+                                  disabled={approvingId === cert.certificateId || rejectingId === cert.certificateId}
+                                  onClick={() => handleReject(cert.certificateId)}
+                                  id={`reject-btn-${cert.certificateId}`}
+                                  title="Reject Certificate"
+                                >
+                                  <X size={13} />
+                                  Reject
+                                </button>
+                              </>
+                            )
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
