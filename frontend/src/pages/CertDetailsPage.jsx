@@ -13,8 +13,6 @@ import {
   Key,
   GitBranch,
   Layers,
-  Bug,
-  RotateCcw,
   GraduationCap,
   Building2,
   Calendar,
@@ -30,7 +28,6 @@ export default function CertDetailsPage({ certId, setView, setVerifyCertId }) {
   const [integrity, setIntegrity] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
-  const [tamperingLoading, setTamperingLoading] = useState(false);
   const [alertNotice, setAlertNotice] = useState(null);
 
   const fetchDetails = async () => {
@@ -53,46 +50,6 @@ export default function CertDetailsPage({ certId, setView, setVerifyCertId }) {
       fetchDetails();
     }
   }, [certId]);
-
-  const handleSimulateTamper = async (tamperedVal = '9.99') => {
-    setTamperingLoading(true);
-    setAlertNotice(null);
-    try {
-      const res = await api.certificates.simulateTamper(certId, tamperedVal);
-      if (res.ok) {
-        setCert(res.data.certificate);
-        setIntegrity(res.data.integrity);
-        setAlertNotice({
-          type: 'danger',
-          message: `Demonstration Tamper Executed: CGPA modified to ${tamperedVal} directly in DB without recalculating SHA-256 block hash. Integrity failure triggered!`
-        });
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setTamperingLoading(false);
-    }
-  };
-
-  const handleRestoreTamper = async () => {
-    setTamperingLoading(true);
-    setAlertNotice(null);
-    try {
-      const res = await api.certificates.restoreTampered(certId, '8.92');
-      if (res.ok) {
-        setCert(res.data.certificate);
-        setIntegrity(res.data.integrity);
-        setAlertNotice({
-          type: 'success',
-          message: 'Certificate restored and cryptographic SHA-256 hash integrity re-synchronized!'
-        });
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setTamperingLoading(false);
-    }
-  };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -717,41 +674,6 @@ export default function CertDetailsPage({ certId, setView, setVerifyCertId }) {
                     TSA timestamp generated upon formal issuance.
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* Interactive PBL Demonstration Sandbox */}
-            <div style={{ background: 'rgba(239, 68, 68, 0.04)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                <div>
-                  <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.9rem' }}>
-                    PBL Evaluation / Viva Demonstration Sandbox
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    Demonstrate to your evaluator how modifying a database field triggers an instant SHA-256 integrity mismatch.
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button
-                    className="btn btn-sm"
-                    style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#fca5a5', border: '1px solid rgba(239, 68, 68, 0.3)' }}
-                    disabled={tamperingLoading}
-                    onClick={() => handleSimulateTamper('9.99')}
-                    id="tamper-test-btn"
-                  >
-                    <Bug size={14} /> Simulate Tampering
-                  </button>
-
-                  <button
-                    className="btn btn-sm btn-secondary"
-                    disabled={tamperingLoading}
-                    onClick={handleRestoreTamper}
-                    id="restore-test-btn"
-                  >
-                    <RotateCcw size={14} /> Restore
-                  </button>
-                </div>
               </div>
             </div>
           </div>

@@ -32,3 +32,9 @@ docs/
 .env*
 *.env
 *.env*
+**/.env
+**/.env*
+**/*.env
+**/*.env*
+.env.local
+.env.*.local

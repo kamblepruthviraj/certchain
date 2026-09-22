@@ -13,15 +13,16 @@ import {
 import { api } from '../services/api';
 import HashBadge from '../components/HashBadge';
 
-export default function CreateCertPage({ setView, setSelectedCertId }) {
+export default function CreateCertPage({ setView, setSelectedCertId, prefillData, onCreated }) {
   const [formData, setFormData] = useState({
-    studentName: '',
-    usn: '',
-    course: 'B.E. Computer Science & Engineering',
-    institution: 'St. Joseph Engineering College',
-    cgpa: '8.80',
+    studentName: prefillData?.studentName || prefillData?.userName || '',
+    usn: prefillData?.studentUsn || prefillData?.usn || '',
+    course: prefillData?.course || 'B.E. Computer Science & Engineering',
+    institution: prefillData?.institution || 'St. Joseph Engineering College',
+    cgpa: prefillData?.cgpa || '8.80',
     issueDate: new Date().toISOString().split('T')[0],
-    certificateType: 'Bachelor of Engineering'
+    certificateType: prefillData?.certificateType || 'Bachelor of Engineering',
+    requestId: prefillData?.requestId || ''
   });
 
   const [loading, setLoading] = useState(false);
@@ -77,6 +78,7 @@ export default function CreateCertPage({ setView, setSelectedCertId }) {
       const res = await api.certificates.create(formData);
       if (res.ok && res.data.certificate) {
         setCreatedCert(res.data.certificate);
+        if (onCreated) onCreated();
       } else {
         setError(res.data.message || 'Failed to create certificate.');
       }
@@ -108,20 +110,17 @@ export default function CreateCertPage({ setView, setSelectedCertId }) {
               height: '64px',
               borderRadius: '50%',
               background: 'rgba(16, 185, 129, 0.15)',
-              border: '2px solid var(--border-success)',
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--success)',
-              boxShadow: 'var(--success-glow)',
-              marginBottom: '1.25rem'
+              margin: '0 auto 1.25rem'
             }}
           >
-            <CheckCircle2 size={36} />
+            <CheckCircle2 size={36} color="var(--success)" />
           </div>
 
-          <h2 style={{ marginBottom: '0.5rem', fontSize: '1.75rem', color: '#fff' }}>
-            Certificate created successfully.
+          <h2 style={{ fontSize: '1.6rem', marginBottom: '0.5rem', color: '#fff' }}>
+            Academic Certificate Generated!
           </h2>
 
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.75rem' }}>
@@ -236,7 +235,7 @@ export default function CreateCertPage({ setView, setSelectedCertId }) {
             <div>
               <h1 style={{ fontSize: '1.75rem', marginBottom: '0.35rem' }}>Issue Academic Certificate</h1>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-                The university official is creating an academic certificate for a student.
+                Create and record an authentic digital certificate for official multi-signature approval.
               </p>
             </div>
 
@@ -244,13 +243,34 @@ export default function CreateCertPage({ setView, setSelectedCertId }) {
               type="button"
               className="btn btn-secondary btn-sm"
               onClick={fillSampleData}
-              title="Populate test student data for rapid evaluation"
+              title="Populate sample student data"
               id="autofill-sample-btn"
             >
               <Wand2 size={15} />
               Autofill Sample Data
             </button>
           </div>
+
+          {formData.requestId && (
+            <div
+              style={{
+                marginBottom: '1.5rem',
+                padding: '0.85rem 1.15rem',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(56, 189, 248, 0.08)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem'
+              }}
+            >
+              <FileText size={18} color="#38bdf8" />
+              <div style={{ fontSize: '0.88rem', color: '#e2e8f0' }}>
+                Fulfilling Student Request <strong style={{ color: '#38bdf8' }}>{formData.requestId}</strong> for{' '}
+                <strong style={{ color: '#fff' }}>{formData.studentName || 'Student'}</strong> ({formData.usn})
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="alert alert-danger" style={{ marginBottom: '1.5rem' }}>

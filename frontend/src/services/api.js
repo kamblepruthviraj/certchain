@@ -86,6 +86,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(payload)
       }),
+    updateRequestStatus: (id, payload) =>
+      request(`/certificates/request/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      }),
     getVerifierStats: () => request('/certificates/verifier-stats')
   },
 

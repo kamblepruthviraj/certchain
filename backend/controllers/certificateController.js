@@ -127,12 +127,24 @@ exports.createCertificate = async (req, res) => {
       createdBy: req.user._id
     });
 
+    // Link to CertificateRequest if submitted to fulfill student request
+    if (req.body.requestId) {
+      await CertificateRequest.findOneAndUpdate(
+        { requestId: req.body.requestId },
+        {
+          status: 'In Review',
+          certificateId: certificate.certificateId,
+          comments: req.body.requestComments || 'Certificate drafted and pending official threshold signatures'
+        }
+      );
+    }
+
     // Record audit event
     await logSecurityEvent(req, {
       action: 'CERTIFICATE_CREATE',
       certificateId,
       result: 'SUCCESS',
-      metadata: { studentName, usn: usn.toUpperCase().trim(), course }
+      metadata: { studentName, usn: usn.toUpperCase().trim(), course, requestId: req.body.requestId }
     });
 
     return res.status(201).json({
@@ -405,6 +417,19 @@ exports.approveCertificate = async (req, res) => {
           keyVersion: certificate.keyVersion
         }
       });
+      // Atomically update any CertificateRequest linked to this certificateId or matching USN
+      await CertificateRequest.updateMany(
+        {
+          $or: [
+            { certificateId: certificate.certificateId },
+            { studentUsn: certificate.usn, status: { $in: ['Pending', 'In Review', 'Approved'] } }
+          ]
+        },
+        {
+          status: 'Issued',
+          certificateId: certificate.certificateId
+        }
+      );
     } else {
       // Log Single Signature Audit Event
       await logSecurityEvent(req, {
@@ -521,6 +546,8 @@ exports.getStats = async (req, res) => {
     const pending = await Certificate.countDocuments({ status: 'PENDING_APPROVAL' });
     const issued = await Certificate.countDocuments({ status: 'ISSUED' });
     const rejected = await Certificate.countDocuments({ status: 'REJECTED' });
+    const pendingRequests = await CertificateRequest.countDocuments({ status: { $in: ['Pending', 'In Review'] } });
+    const totalRequests = await CertificateRequest.countDocuments();
 
     return res.status(200).json({
       success: true,
@@ -528,7 +555,9 @@ exports.getStats = async (req, res) => {
         total,
         pending,
         issued,
-        rejected
+        rejected,
+        pendingRequests,
+        totalRequests
       }
     });
   } catch (error) {
@@ -813,4 +842,53 @@ exports.getVerifierDashboardStats = async (req, res) => {
     });
   }
 };
+
+/**
+ * Update student certificate request status (Admin / University Official)
+ */
+exports.updateCertificateRequestStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, comments, certificateId } = req.body;
+
+    const request = await CertificateRequest.findOne({
+      $or: [
+        { requestId: id },
+        ...(id.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: id }] : [])
+      ]
+    });
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: `Certificate request ${id} not found.`
+      });
+    }
+
+    if (status) request.status = status;
+    if (comments !== undefined) request.comments = comments;
+    if (certificateId) request.certificateId = certificateId;
+
+    await request.save();
+
+    await logSecurityEvent(req, {
+      action: 'CERTIFICATE_REQUEST_STATUS_UPDATED',
+      result: 'SUCCESS',
+      metadata: { requestId: request.requestId, newStatus: request.status }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Request ${request.requestId} updated to ${request.status}.`,
+      request
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Error updating certificate request status.',
+      error: error.message
+    });
+  }
+};
+
 

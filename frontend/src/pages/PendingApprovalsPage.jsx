@@ -10,23 +10,33 @@ import {
   Shield,
   RefreshCw,
   Clock,
-  FileText
+  FileText,
+  FilePlus
 } from 'lucide-react';
 import { api } from '../services/api';
 
-export default function PendingApprovalsPage({ user, setView, setSelectedCertId, onApprovalChanged }) {
+export default function PendingApprovalsPage({ user, setView, setSelectedCertId, onApprovalChanged, onFulfillRequest }) {
+  const [activeTab, setActiveTab] = useState('threshold');
   const [pendingCerts, setPendingCerts] = useState([]);
+  const [studentRequests, setStudentRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionMessage, setActionMessage] = useState(null);
   const [approvingId, setApprovingId] = useState(null);
   const [rejectingId, setRejectingId] = useState(null);
+  const [requestActionLoading, setRequestActionLoading] = useState(null);
 
   const fetchPending = async () => {
     setLoading(true);
     try {
-      const res = await api.certificates.getPending();
-      if (res.ok && res.data.certificates) {
-        setPendingCerts(res.data.certificates);
+      const [certsRes, reqsRes] = await Promise.all([
+        api.certificates.getPending(),
+        api.certificates.getMyRequests()
+      ]);
+      if (certsRes.ok && certsRes.data.certificates) {
+        setPendingCerts(certsRes.data.certificates);
+      }
+      if (reqsRes.ok && reqsRes.data.requests) {
+        setStudentRequests(reqsRes.data.requests);
       }
     } catch (err) {
       console.error('Error fetching pending certificates:', err);
@@ -38,6 +48,48 @@ export default function PendingApprovalsPage({ user, setView, setSelectedCertId,
   useEffect(() => {
     fetchPending();
   }, []);
+
+  const handleUpdateRequestStatus = async (requestId, newStatus) => {
+    let comments = '';
+    if (newStatus === 'Rejected') {
+      const promptRes = window.prompt('Please enter a rejection reason:');
+      if (promptRes === null) return;
+      comments = promptRes || 'Administrative rejection';
+    }
+    setRequestActionLoading(requestId);
+    setActionMessage(null);
+    try {
+      const res = await api.certificates.updateRequestStatus(requestId, { status: newStatus, comments });
+      if (res.ok) {
+        setActionMessage({
+          type: 'success',
+          text: `Request ${requestId} status updated to ${newStatus}.`
+        });
+        await fetchPending();
+        if (onApprovalChanged) onApprovalChanged();
+      } else {
+        setActionMessage({
+          type: 'danger',
+          text: res.data?.message || 'Failed to update request.'
+        });
+      }
+    } catch (err) {
+      setActionMessage({
+        type: 'danger',
+        text: 'Error updating student request.'
+      });
+    } finally {
+      setRequestActionLoading(null);
+    }
+  };
+
+  const handleFulfillRequest = (req) => {
+    if (onFulfillRequest) {
+      onFulfillRequest(req);
+    } else {
+      setView('create');
+    }
+  };
 
   const handleApprove = async (certId) => {
     setApprovingId(certId);
@@ -191,13 +243,167 @@ export default function PendingApprovalsPage({ user, setView, setSelectedCertId,
         </span>
       </div>
 
-      {/* Table of Pending Certificates */}
+      {/* Tab Switcher */}
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
+        <button
+          className={`btn btn-sm ${activeTab === 'threshold' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('threshold')}
+          id="tab-threshold-approvals-btn"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+        >
+          <CheckSquare size={15} />
+          Threshold Approvals ({pendingCerts.length})
+        </button>
+
+        <button
+          className={`btn btn-sm ${activeTab === 'requests' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('requests')}
+          id="tab-student-requests-btn"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+        >
+          <FileText size={15} />
+          Student Requests ({studentRequests.filter((r) => r.status === 'Pending' || r.status === 'In Review').length})
+        </button>
+      </div>
+
+      {/* Main Content Glass Panel */}
       <div className="glass-panel" style={{ padding: '1.75rem' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '3.5rem', color: 'var(--text-secondary)' }}>
             <RefreshCw size={26} className="spin" style={{ marginBottom: '0.75rem', opacity: 0.6 }} />
-            <p>Loading pending approvals queue...</p>
+            <p>Loading pending queue...</p>
           </div>
+        ) : activeTab === 'requests' ? (
+          studentRequests.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-secondary)' }}>
+              <CheckCircle2 size={48} color="var(--success)" style={{ marginBottom: '1rem', opacity: 0.8 }} />
+              <h3 style={{ color: '#fff', marginBottom: '0.5rem' }}>No Student Requests</h3>
+              <p style={{ maxWidth: '420px', margin: '0 auto', fontSize: '0.92rem' }}>
+                There are currently no student certificate requests awaiting review.
+              </p>
+            </div>
+          ) : (
+            <div className="table-container">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Request ID</th>
+                    <th>Student Name</th>
+                    <th>USN</th>
+                    <th>Certificate Type</th>
+                    <th>Purpose</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {studentRequests.map((req) => (
+                    <tr key={req._id || req.requestId}>
+                      <td>
+                        <span style={{ fontWeight: 700, color: '#a5b4fc', fontFamily: 'monospace' }}>
+                          {req.requestId}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 600, color: '#fff' }}>{req.userName}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{req.userEmail}</div>
+                      </td>
+                      <td>
+                        <span style={{ fontFamily: 'monospace', fontSize: '0.88rem', color: '#38bdf8' }}>
+                          {req.studentUsn || 'N/A'}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ fontSize: '0.88rem' }}>{req.certificateType}</span>
+                      </td>
+                      <td>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                          {req.purpose || 'Verification'}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                          {formatDate(req.requestedDate || req.createdAt)}
+                        </span>
+                      </td>
+                      <td>
+                        {req.status === 'Approved' ? (
+                          <span className="status-badge badge-issued">Approved</span>
+                        ) : req.status === 'Issued' ? (
+                          <span className="status-badge badge-issued">Issued</span>
+                        ) : req.status === 'Rejected' ? (
+                          <span className="status-badge badge-invalid">Rejected</span>
+                        ) : req.status === 'In Review' ? (
+                          <span style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                            In Review
+                          </span>
+                        ) : (
+                          <span className="status-badge badge-pending">Pending</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                          {req.status !== 'Issued' && (
+                            <button
+                              className="btn btn-primary btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', padding: '0.35rem 0.65rem' }}
+                              onClick={() => handleFulfillRequest(req)}
+                              title="Issue certificate with student details prefilled"
+                              id={`fulfill-tab-request-${req.requestId}`}
+                            >
+                              <FilePlus size={13} />
+                              Issue Certificate
+                            </button>
+                          )}
+                          {req.status === 'Pending' && (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', padding: '0.35rem 0.55rem', color: '#34d399' }}
+                              disabled={requestActionLoading === req.requestId}
+                              onClick={() => handleUpdateRequestStatus(req.requestId, 'Approved')}
+                              title="Approve request"
+                              id={`approve-tab-request-${req.requestId}`}
+                            >
+                              <Check size={13} />
+                              Approve
+                            </button>
+                          )}
+                          {req.status !== 'Rejected' && req.status !== 'Issued' && (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', padding: '0.35rem 0.55rem', color: '#f87171' }}
+                              disabled={requestActionLoading === req.requestId}
+                              onClick={() => handleUpdateRequestStatus(req.requestId, 'Rejected')}
+                              title="Reject request"
+                              id={`reject-tab-request-${req.requestId}`}
+                            >
+                              <X size={13} />
+                              Reject
+                            </button>
+                          )}
+                          {req.certificateId && (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', padding: '0.35rem 0.55rem' }}
+                              onClick={() => {
+                                setSelectedCertId(req.certificateId);
+                                setView('details');
+                              }}
+                              title="View Issued Certificate"
+                            >
+                              <Eye size={13} />
+                              View Cert
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         ) : pendingCerts.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-secondary)' }}>
             <CheckCircle2 size={48} color="var(--success)" style={{ marginBottom: '1rem', opacity: 0.8 }} />

@@ -32,6 +32,7 @@ export default function App() {
   const [selectedCertId, setSelectedCertId] = useState(null);
   const [verifyCertId, setVerifyCertId] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [createCertPrefill, setCreateCertPrefill] = useState(null);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [accessWarning, setAccessWarning] = useState(null);
 
@@ -185,7 +186,9 @@ export default function App() {
     try {
       const res = await api.certificates.getStats();
       if (res.ok && res.data.stats) {
-        setPendingCount(res.data.stats.pending);
+        const certPending = res.data.stats.pending || 0;
+        const reqPending = res.data.stats.pendingRequests || 0;
+        setPendingCount(certPending + reqPending);
       }
     } catch (err) {
       console.error('Error fetching stats:', err);
@@ -242,6 +245,15 @@ export default function App() {
             setView={handleNavigate}
             setSelectedCertId={setSelectedCertId}
             user={user}
+            onFulfillRequest={(req) => {
+              setCreateCertPrefill({
+                studentName: req.userName,
+                studentUsn: req.studentUsn,
+                certificateType: req.certificateType,
+                requestId: req.requestId
+              });
+              handleNavigate('create');
+            }}
           />
         );
 
@@ -262,6 +274,11 @@ export default function App() {
           <CreateCertPage
             setView={handleNavigate}
             setSelectedCertId={setSelectedCertId}
+            prefillData={createCertPrefill}
+            onCreated={() => {
+              setCreateCertPrefill(null);
+              fetchPendingCount();
+            }}
           />
         ) : (
           <DashboardPage
@@ -278,6 +295,15 @@ export default function App() {
             setView={handleNavigate}
             setSelectedCertId={setSelectedCertId}
             onApprovalChanged={fetchPendingCount}
+            onFulfillRequest={(req) => {
+              setCreateCertPrefill({
+                studentName: req.userName,
+                studentUsn: req.studentUsn,
+                certificateType: req.certificateType,
+                requestId: req.requestId
+              });
+              handleNavigate('create');
+            }}
           />
         ) : (
           <DashboardPage

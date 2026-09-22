@@ -11,6 +11,7 @@ router.get('/pending', verifyToken, requireRoles('Admin', 'University Official')
 // Normal user / verifier requests and dashboard activity
 router.get('/my-requests', verifyToken, certificateController.getMyRequests);
 router.post('/request', verifyToken, certificateController.createCertificateRequest);
+router.patch('/request/:id/status', verifyToken, requireRoles('Admin', 'University Official'), certificateController.updateCertificateRequestStatus);
 router.get('/verifier-stats', verifyToken, certificateController.getVerifierDashboardStats);
 
 router.post('/', verifyToken, requireRoles('Admin', 'University Official'), certificateController.createCertificate);
